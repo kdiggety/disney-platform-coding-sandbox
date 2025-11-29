@@ -1,0 +1,23 @@
+spring:
+  profiles:
+    active: test
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://idp.example.com/issuer
+
+app:
+  jwt:
+    issuer: ${JWT_ISSUER:https://issuer.example.com/}
+    audience: ${JWT_AUDIENCE:entitlements-api}
+    hmac-secret: ${JWT_HMAC_SECRET:0123456789abcdef0123456789abcdef}
+
+  base-url: ${LEGACY_ENTITLEMENTS_URL:http://localhost:8081/legacy/entitlements}
+  connect-timeout: ${LEGACY_CONNECT_TIMEOUT:2s}
+  request-timeout: ${LEGACY_REQUEST_TIMEOUT:2s}
+  max-attempts: ${LEGACY_MAX_ATTEMPTS:3}
+  initial-backoff: ${LEGACY_INITIAL_BACKOFF:100ms}
+  max-backoff: ${LEGACY_MAX_BACKOFF:2s}
+  backoff-multiplier: ${LEGACY_BACKOFF_MULTIPLIER:2.0}
+  jitter-ratio: ${LEGACY_JITTER_RATIO:0.2}
