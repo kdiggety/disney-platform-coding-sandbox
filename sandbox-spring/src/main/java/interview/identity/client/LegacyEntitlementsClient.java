@@ -1,22 +1,21 @@
 package interview.identity.client;
 
 import interview.identity.config.LegacyEntitlementsProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
+import interview.identity.exception.LegacyEntitlementsUnavailableException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 @Component
 public class LegacyEntitlementsClient implements EntitlementsClient {
@@ -102,7 +101,10 @@ public class LegacyEntitlementsClient implements EntitlementsClient {
             }
         }
 
-        throw new LegacyEntitlementsException("Legacy entitlements failed after retries", lastError);
+        throw new LegacyEntitlementsUnavailableException(
+                "Legacy entitlements failed after retries",
+                lastError
+        );
     }
 
     private URI buildUri(String userId, String region) {
