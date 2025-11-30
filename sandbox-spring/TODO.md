@@ -20,3 +20,24 @@ Low
 - [ ] Missing class and method level comments - interview.identity.client.EntitlementsClient
 - [ ] Fragile CSV parsing - interview/identity/client/LegacyEntitlementsClient.java:65-70
 - [ ] Missing Javadocs - ALL CLASSES
+
+# Open Tasks:
+
+## Challenge 2 — Authorization / scopes (feature add)
+- [x] Require entitlements.read scope for /api/v1/entitlements 
+- [x] Return 403 with {code:"INSUFFICIENT_SCOPE"} when missing 
+- [x] Add tests for missing/incorrect scope
+
+## Challenge 3 — Multi-issuer support (platform design)
+- [ ] Support multiple issuers safely (allowlist)
+- [ ] Route to issuer-specific JwtDecoder (prod: JWKS per issuer; test: deterministic local)
+- [ ] Add tests: issuer A accepted, issuer B rejected, unknown issuer rejected
+
+## Challenge 4 — Operational hardening (platform excellence)
+- [ ] Observability: metrics + structured logs + correlation id 
+- [ ] Resilience: circuit breaker / bulkhead + retry policy for legacy client (you basically did retries; circuit breaker is next)
+- [ ] Clear error mapping: legacy down → 503 with stable error code
+
+## Challenge 5 — “Make it reusable across teams”
+- [ ] Extract the JWT validation + scope enforcement into a small internal starter/module 
+- [ ] Or show how you’d shift baseline auth to Istio policies while still doing app-level authz

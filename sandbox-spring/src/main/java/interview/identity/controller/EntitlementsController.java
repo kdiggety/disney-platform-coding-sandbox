@@ -3,6 +3,7 @@ package interview.identity.controller;
 import interview.identity.model.EntitlementsResponse;
 import interview.identity.service.EntitlementsService;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +22,7 @@ public class EntitlementsController {
     }
 
     // Example: GET /api/v1/entitlements?region=US
+    @PreAuthorize("hasAuthority('SCOPE_entitlements.read')")
     @GetMapping(value = "/entitlements", produces = MediaType.APPLICATION_JSON_VALUE)
     public EntitlementsResponse entitlements(
             @AuthenticationPrincipal Jwt jwt,

@@ -1,40 +1,44 @@
 package interview.identity.config;
 
-import interview.identity.security.JwtValidationPolicy;
-import java.time.Duration;
-import org.springframework.beans.factory.annotation.Value;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import interview.identity.security.JsonAccessDeniedHandler;
+import interview.identity.security.JsonAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2Error;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtDecoders;
-import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
-import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.servlet.handler.HandlerMappingIntrospector;
 
 @Configuration
-@Profile("!test")
 public class WebSecurityConfig {
+
     @Bean
-    JwtDecoder jwtDecoder(
-            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
-            @Value("${app.jwt.audience}") String audience,
-            @Value("${app.jwt.clock-skew-seconds:60}") long skewSeconds) {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            ObjectMapper om,
+            HandlerMappingIntrospector introspector
+    ) throws Exception {
 
-        NimbusJwtDecoder decoder = JwtDecoders.fromIssuerLocation(issuer);
+        var invalidToken401 =
+                new JsonAuthenticationEntryPoint(om, "INVALID_TOKEN", "Missing or invalid access token");
 
-        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuer);
-        OAuth2TokenValidator<Jwt> withAudience = jwt ->
-                jwt.getAudience() != null && jwt.getAudience().contains(audience)
-                        ? OAuth2TokenValidatorResult.success()
-                        : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token","Bad aud",null));
+        var insufficientScope403 =
+                new JsonAccessDeniedHandler(om, "INSUFFICIENT_SCOPE", "Missing required scope: entitlements.read");
 
-        decoder.setJwtValidator(JwtValidationPolicy.build(issuer, audience, Duration.ofSeconds(skewSeconds)));
-        return decoder;
+        return http
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/healthz").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> {}))
+                .exceptionHandling(ex -> ex
+                        // ✅ single consistent JSON handler for *all* 401s
+                        .authenticationEntryPoint(invalidToken401)
+                        // ✅ scoped 403 handler for missing scope
+                        .accessDeniedHandler(insufficientScope403)
+                )
+                .build();
     }
 }
