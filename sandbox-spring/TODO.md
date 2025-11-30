@@ -35,8 +35,8 @@ Low
 
 ## Challenge 4 — Operational hardening (platform excellence)
 - [ ] Observability: metrics + structured logs + correlation id 
-- [ ] Resilience: circuit breaker / bulkhead + retry policy for legacy client (you basically did retries; circuit breaker is next)
-- [ ] Clear error mapping: legacy down → 503 with stable error code
+- [x] Resilience: circuit breaker / bulkhead + retry policy for legacy client (you basically did retries; circuit breaker is next)
+- [x] Clear error mapping: legacy down → 503 with stable error code
 
 ## Challenge 5 — “Make it reusable across teams”
 - [ ] Extract the JWT validation + scope enforcement into a small internal starter/module 

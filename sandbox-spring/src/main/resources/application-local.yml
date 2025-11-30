@@ -12,7 +12,6 @@ app:
       - issuer: "https://issuer-a.example.com"
     audience: ${JWT_AUDIENCE:entitlements-api}
 
-
   base-url: ${LEGACY_ENTITLEMENTS_URL:http://localhost:8081/legacy/entitlements}
   connect-timeout: ${LEGACY_CONNECT_TIMEOUT:2s}
   request-timeout: ${LEGACY_REQUEST_TIMEOUT:2s}
@@ -21,3 +20,26 @@ app:
   max-backoff: ${LEGACY_MAX_BACKOFF:2s}
   backoff-multiplier: ${LEGACY_BACKOFF_MULTIPLIER:2.0}
   jitter-ratio: ${LEGACY_JITTER_RATIO:0.2}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      legacyEntitlements:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        recordExceptions:
+          - interview.identity.exception.LegacyEntitlementsUnavailableException
+          - interview.identity.client.LegacyEntitlementsException
+          - java.io.IOException
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+  bulkhead:
+    instances:
+      legacyEntitlements:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 0ms
+
