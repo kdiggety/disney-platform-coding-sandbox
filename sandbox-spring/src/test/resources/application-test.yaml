@@ -1,0 +1,9 @@
+app:
+  jwt:
+    audience: "entitlements-api"
+    clock-skew: 60s
+    issuers:
+      - issuer: "https://issuer-a.example.com"
+        hmac-secret: "0123456789abcdef0123456789abcdef"
+      - issuer: "https://issuer-b.example.com"
+        hmac-secret: "abcdef0123456789abcdef0123456789"

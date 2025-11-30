@@ -8,9 +8,10 @@ spring:
 
 app:
   jwt:
-    issuer: ${JWT_ISSUER:https://issuer.example.com/}
+    issuers:
+      - issuer: "https://issuer-a.example.com"
     audience: ${JWT_AUDIENCE:entitlements-api}
-    hmac-secret: ${JWT_HMAC_SECRET:0123456789abcdef0123456789abcdef}
+
 
   base-url: ${LEGACY_ENTITLEMENTS_URL:http://localhost:8081/legacy/entitlements}
   connect-timeout: ${LEGACY_CONNECT_TIMEOUT:2s}

@@ -29,9 +29,9 @@ Low
 - [x] Add tests for missing/incorrect scope
 
 ## Challenge 3 — Multi-issuer support (platform design)
-- [ ] Support multiple issuers safely (allowlist)
-- [ ] Route to issuer-specific JwtDecoder (prod: JWKS per issuer; test: deterministic local)
-- [ ] Add tests: issuer A accepted, issuer B rejected, unknown issuer rejected
+- [x] Support multiple issuers safely (allowlist)
+- [x] Route to issuer-specific JwtDecoder (prod: JWKS per issuer; test: deterministic local)
+- [x] Add tests: issuer A accepted, issuer B rejected, unknown issuer rejected
 
 ## Challenge 4 — Operational hardening (platform excellence)
 - [ ] Observability: metrics + structured logs + correlation id 
