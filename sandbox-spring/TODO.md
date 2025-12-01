@@ -39,5 +39,72 @@ Low
 - [x] Clear error mapping: legacy down → 503 with stable error code
 
 ## Challenge 5 — “Make it reusable across teams”
-- [ ] Extract the JWT validation + scope enforcement into a small internal starter/module 
-- [ ] Or show how you’d shift baseline auth to Istio policies while still doing app-level authz
+
+### Option A (preferred): Internal Spring Boot Starter / Module
+
+**Goal:** Package multi-issuer JWT validation + consistent 401/403 handling + scope enforcement patterns into a reusable dependency teams can adopt with minimal code.
+
+#### Deliverables
+- [ ] Create repo/module structure:
+    - [ ] `security-autoconfigure` (JAR): contains auto-config + properties + handlers
+    - [ ] `security-starter` (POM/JAR): depends on autoconfigure and pulls required deps (resource server, jose, etc.)
+- [ ] Move common security components into `security-autoconfigure`:
+    - [ ] `JwtProperties` (`app.jwt.*`): `issuers[]`, `audience`, `clockSkewSeconds`, optional test-only `hmacSecretsByIssuer`
+    - [ ] `JwtValidationPolicy`: issuer + audience + timestamp validation
+    - [ ] `JsonAuthenticationEntryPoint` (401) + `JsonAccessDeniedHandler` (403) producing stable error codes
+    - [ ] Multi-issuer `AuthenticationManagerResolver<HttpServletRequest>` with allowlist + per-issuer decoder caching
+    - [ ] Default `SecurityFilterChain` with:
+        - `.oauth2ResourceServer(o -> o.authenticationManagerResolver(resolver))`
+        - `.exceptionHandling(ex -> ex.authenticationEntryPoint(json401).accessDeniedHandler(json403))`
+        - `.authorizeHttpRequests(...)` baseline authenticated-by-default
+    - [ ] Ensure overrideability:
+        - [ ] `@ConditionalOnMissingBean(SecurityFilterChain.class)`
+        - [ ] `@ConditionalOnMissingBean(AuthenticationManagerResolver.class)`
+- [ ] Register auto-configuration (Boot 3):
+    - [ ] `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
+        - `com.yourco.security.autoconfigure.SecurityAutoConfiguration`
+- [ ] Provide a reusable scope enforcement pattern (pick one):
+    - [ ] Pattern 1 (constants): `Scopes.ENTITLEMENTS_READ = "SCOPE_entitlements.read"` for `@PreAuthorize`
+    - [ ] Pattern 2 (helper bean): `@Component ScopeChecker` used as `@PreAuthorize("@scope.has(authentication,'entitlements.read')")`
+- [ ] Provide “test mode” support for local dev and unit tests:
+    - [ ] In tests, use deterministic HS256 secrets per issuer (no network)
+    - [ ] Provide a `JwtTestSupport` utility to mint HS256 JWTs with `iss/aud/scope` for integration tests
+- [ ] Publish usage instructions:
+    - [ ] Example dependency snippet
+    - [ ] Example `application.yaml`:
+        - `app.jwt.audience`
+        - `app.jwt.clock-skew-seconds`
+        - `app.jwt.issuers[].issuer`
+        - (optional test) `app.jwt.issuers[].hmac-secret`
+
+#### Adoption flow for teams
+- [ ] Add dependency: `com.yourco.security:security-starter`
+- [ ] Set `app.jwt.*` properties
+- [ ] Add `@PreAuthorize(...)` scope checks (or shared annotations/constants)
+- [ ] Get consistent 401/403 JSON errors + multi-issuer validation by default
+
+---
+
+### Option B (platform evolution): Baseline auth in Istio + app-level authz
+
+**Goal:** Centralize JWT verification and coarse policy in Istio; keep business/endpoint authorization in the app.
+
+#### Istio responsibilities (gateway + sidecar)
+- [ ] JWT verification (RequestAuthentication):
+    - [ ] signature/JWKS resolution
+    - [ ] issuer allowlist
+    - [ ] token lifetime checks (exp/nbf)
+- [ ] Coarse authorization (AuthorizationPolicy):
+    - [ ] require authenticated principal
+    - [ ] optionally require broad permission/role at perimeter
+    - [ ] prefer array-style claims (`permissions: [...]`, `roles: [...]`) for reliable membership checks
+
+#### App responsibilities
+- [ ] Fine-grained authorization:
+    - [ ] per-endpoint `scope` checks via Spring Security (`@PreAuthorize`)
+    - [ ] tenant/region/business rules
+- [ ] Maintain consistent API error contract (401/403 JSON) and domain-specific decisions
+
+#### Key note / tradeoff
+- [ ] Istio policy matching is most robust with array claims (e.g., `permissions: ["entitlements.read"]`).
+    - If IdP only emits space-delimited `scope` strings, prefer keeping scope enforcement in-app while Istio does baseline auth.
