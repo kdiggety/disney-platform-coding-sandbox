@@ -34,7 +34,7 @@ Low
 - [x] Add tests: issuer A accepted, issuer B rejected, unknown issuer rejected
 
 ## Challenge 4 — Operational hardening (platform excellence)
-- [ ] Observability: metrics + structured logs + correlation id 
+- [x] Observability: metrics + structured logs + correlation id 
 - [x] Resilience: circuit breaker / bulkhead + retry policy for legacy client (you basically did retries; circuit breaker is next)
 - [x] Clear error mapping: legacy down → 503 with stable error code
 

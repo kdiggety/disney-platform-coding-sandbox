@@ -2,6 +2,7 @@ package interview.identity.client;
 
 import interview.identity.config.LegacyEntitlementsProperties;
 import interview.identity.exception.LegacyEntitlementsUnavailableException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -17,6 +18,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+
 @Component
 public class LegacyEntitlementsClient implements EntitlementsClient {
     private static final Logger log = LoggerFactory.getLogger(LegacyEntitlementsClient.class);
@@ -25,28 +30,54 @@ public class LegacyEntitlementsClient implements EntitlementsClient {
     private final HttpClient http;
     private final Sleeper sleeper;
 
+    private final Timer legacyTimer;
+    private final Counter legacySuccess;
+    private final Counter legacyFailure;
+
     public LegacyEntitlementsClient() {
         // Default constructor for simplicity in this snippet; in your app you can inject props via Spring.
-        this(new LegacyEntitlementsProperties());
+        this(new LegacyEntitlementsProperties() , new SimpleMeterRegistry());
     }
 
-    public LegacyEntitlementsClient(LegacyEntitlementsProperties props) {
+    public LegacyEntitlementsClient(LegacyEntitlementsProperties props, MeterRegistry registry) {
         this(props,
                 HttpClient.newBuilder()
                         .connectTimeout(props.getConnectTimeout())
                         .build(),
-                Sleeper.system());
+                Sleeper.system(),
+                registry);
+    }
+
+    // Package-private for tests (keep signature so existing tests compile)
+    LegacyEntitlementsClient(LegacyEntitlementsProperties props, HttpClient http, Sleeper sleeper) {
+        this(props, http, sleeper, new SimpleMeterRegistry());
     }
 
     // Package-private for tests
-    LegacyEntitlementsClient(LegacyEntitlementsProperties props, HttpClient http, Sleeper sleeper) {
+    LegacyEntitlementsClient(LegacyEntitlementsProperties props, HttpClient http, Sleeper sleeper, MeterRegistry registry) {
         this.props = props;
         this.http = http;
         this.sleeper = sleeper;
+
+        this.legacyTimer = Timer.builder("legacy_entitlements_call_seconds")
+                .description("Latency of legacy entitlement calls (including retries)")
+                .register(registry);
+
+        this.legacySuccess = Counter.builder("legacy_entitlements_success_total")
+                .description("Successful legacy entitlement calls")
+                .register(registry);
+
+        this.legacyFailure = Counter.builder("legacy_entitlements_failure_total")
+                .description("Failed legacy entitlement calls (terminal)")
+                .register(registry);
     }
 
     @Override
     public List<String> fetchEntitlements(String userId, String region) {
+        return legacyTimer.record(() -> fetchEntitlementsInternal(userId, region));
+    }
+
+    private List<String> fetchEntitlementsInternal(String userId, String region) {
         validateInputs(userId, region);
 
         int attempts = 0;
@@ -66,13 +97,14 @@ public class LegacyEntitlementsClient implements EntitlementsClient {
                 int status = resp.statusCode();
 
                 if (status >= 200 && status < 300) {
+                    legacySuccess.increment();
                     return parseCsv(resp.body());
                 }
 
-                // Don't log body (could contain PII). Log status + attempt.
                 log.warn("Legacy entitlements call failed status={} attempt={}/{}", status, attempts, props.getMaxAttempts());
 
                 if (!isRetryableStatus(status)) {
+                    legacyFailure.increment();
                     throw new LegacyEntitlementsException("Legacy returned non-retryable status: " + status);
                 }
 
@@ -81,26 +113,29 @@ public class LegacyEntitlementsClient implements EntitlementsClient {
                 log.warn("Legacy entitlements IO failure attempt={}/{} err={}", attempts, props.getMaxAttempts(), e.toString());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                legacyFailure.increment();
                 throw new LegacyEntitlementsException("Interrupted while calling legacy entitlements", e);
             } catch (LegacyEntitlementsException e) {
                 // non-retryable or explicit failure
+                // (we already incremented failure above for the non-retryable status path; do not double-count here)
                 throw e;
             } catch (Exception e) {
-                // unexpected, treat as non-retryable by default
+                legacyFailure.increment();
                 throw new LegacyEntitlementsException("Unexpected error calling legacy entitlements", e);
             }
 
-            // Backoff before next retry (unless that was the last attempt)
             if (attempts < props.getMaxAttempts()) {
                 try {
                     sleeper.sleep(computeBackoff(attempts));
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
+                    legacyFailure.increment();
                     throw new LegacyEntitlementsException("Interrupted during retry backoff", ie);
                 }
             }
         }
 
+        legacyFailure.increment();
         throw new LegacyEntitlementsUnavailableException(
                 "Legacy entitlements failed after retries",
                 lastError
@@ -150,7 +185,7 @@ public class LegacyEntitlementsClient implements EntitlementsClient {
         if (body == null || body.isBlank()) return out;
 
         for (String raw : body.split(",")) {
-            String s = raw == null ? "" : raw.trim();
+            String s = raw.trim();
             if (!s.isEmpty()) out.add(s);
         }
 

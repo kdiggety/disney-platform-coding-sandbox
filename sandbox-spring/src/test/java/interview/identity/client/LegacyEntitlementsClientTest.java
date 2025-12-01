@@ -1,6 +1,7 @@
 package interview.identity.client;
 
 import interview.identity.config.LegacyEntitlementsProperties;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -83,6 +84,30 @@ class LegacyEntitlementsClientTest {
 
         List<String> entitlements = client.fetchEntitlements("user-123", "US");
         assertEquals(List.of("A", "B", "C"), entitlements);
+    }
+
+    @Test
+    void metrics_increment_success_and_failure() {
+        // success path
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("A,B"));
+
+        LegacyEntitlementsProperties props = propsForServer();
+        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(1)).build();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+        LegacyEntitlementsClient client = new LegacyEntitlementsClient(props, http, d -> {}, registry);
+
+        assertEquals(List.of("A", "B"), client.fetchEntitlements("user-123", "US"));
+
+        assertEquals(1.0, registry.get("legacy_entitlements_success_total").counter().count());
+        assertEquals(0.0, registry.get("legacy_entitlements_failure_total").counter().count());
+        assertTrue(registry.get("legacy_entitlements_call_seconds").timer().count() >= 1);
+
+        // failure path (non-retryable)
+        server.enqueue(new MockResponse().setResponseCode(400).setBody("bad request"));
+
+        assertThrows(LegacyEntitlementsException.class, () -> client.fetchEntitlements("user-123", "US"));
+        assertEquals(1.0, registry.get("legacy_entitlements_failure_total").counter().count());
     }
 
     private LegacyEntitlementsProperties propsForServer() {
