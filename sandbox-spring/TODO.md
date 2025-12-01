@@ -23,6 +23,12 @@ Low
 
 # Open Tasks:
 
+## Challenge #1 = “JWT validation bug: decoding ≠ verifying”. Below is a paste-ready, working Spring Boot 3 / Java 17 mini-solution you can use in your sandbox-spring to practice the exact interview flow:
+- [x] Existing endpoint: GET /api/v1/entitlements?token=... Fix: verify signature + iss + aud + exp/nbf (with clock skew) before trusting sub
+- [x] Add: scope check
+- [x] Add: consistent error contract ({code,message}) with 400 for malformed, 401 for invalid, 403 for missing scope
+- [x] Add: tests (MockMvc) including token generation
+
 ## Challenge 2 — Authorization / scopes (feature add)
 - [x] Require entitlements.read scope for /api/v1/entitlements 
 - [x] Return 403 with {code:"INSUFFICIENT_SCOPE"} when missing 
